@@ -1,4 +1,4 @@
-import { Component, ComponentInterface, Element, EventListenerEnable, FunctionalComponent, Listen, Method, Prop, QueueApi, State, Watch } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, EventListenerEnable, FunctionalComponent, Listen, Method, Prop, QueueApi, State, Watch } from '@stencil/core';
 
 import { Cell, DomRenderFn, HeaderFn, ItemHeightFn, ItemRenderFn, VirtualNode } from '../../interface';
 
@@ -135,6 +135,10 @@ export class VirtualScroll implements ComponentInterface {
 
   /** @internal */
   @Prop() domRender?: DomRenderFn;
+
+  @Prop({ mutable: true }) keepPosition = false;
+  @Prop() itemBufferSize = 2;
+  @Event() ionKeepPositionDone!: EventEmitter<void>;
 
   @Watch('itemHeight')
   @Watch('items')
@@ -275,34 +279,52 @@ export class VirtualScroll implements ComponentInterface {
     const viewport = getViewport(scrollTop, this.viewportHeight, 100);
 
     // compute lazily the height index
+    const prevScrollTop = this.scrollEl!.scrollTop;
+    const prevTotalHeight = this.totalHeight;
     const heightIndex = this.getHeightIndex();
 
-    // get array bounds of visible cells base in the viewport
-    const range = getRange(heightIndex, viewport, 2);
+    if (!this.keepPosition) {
+      // get array bounds of visible cells base in the viewport
+      const range = getRange(heightIndex, viewport, this.itemBufferSize);
 
-    // fast path, do nothing
-    const shouldUpdate = getShouldUpdate(dirtyIndex, this.range, range);
-    if (!shouldUpdate) {
-      return;
-    }
-    this.range = range;
+      // fast path, do nothing
+      const shouldUpdate = getShouldUpdate(dirtyIndex, this.range, range);
+      if (!shouldUpdate) {
+        return;
+      }
+      this.range = range;
 
-    // in place mutation of the virtual DOM
-    updateVDom(
-      this.virtualDom,
-      heightIndex,
-      this.cells,
-      range
-    );
+      // in place mutation of the virtual DOM
+      updateVDom(
+        this.virtualDom,
+        heightIndex,
+        this.cells,
+        range
+      );
 
-    // Write DOM
-    // Different code paths taken depending of the render API used
-    if (this.nodeRender) {
-      doRender(this.el, this.nodeRender, this.virtualDom, this.updateCellHeight.bind(this));
-    } else if (this.domRender) {
-      this.domRender(this.virtualDom);
-    } else if (this.renderItem) {
-      this.el.forceUpdate();
+      // Write DOM
+      // Different code paths taken depending of the render API used
+      if (this.nodeRender) {
+        doRender(this.el, this.nodeRender, this.virtualDom, this.updateCellHeight.bind(this));
+      } else if (this.domRender) {
+        this.domRender(this.virtualDom);
+      } else if (this.renderItem) {
+        this.el.forceUpdate();
+      }
+    } else {
+      this.el!.style.height = this.totalHeight + 'px';
+      const diff = this.totalHeight - prevTotalHeight;
+      this.scrollEl!.scrollTop = diff + prevScrollTop;
+      this.keepPosition = false;
+
+      const children = Array.from(this.el.children).filter(n => n.tagName !== 'TEMPLATE');
+      let child: HTMLElement;
+      for (let i = 0; i < this.virtualDom.length; i++) {
+        const node = this.virtualDom[i];
+        child = children[i] as HTMLElement;
+        child.style.transform = `translate3d(0,${node.top + diff}px,0)`;
+      }
+      this.ionKeepPositionDone.emit();
     }
   }
 

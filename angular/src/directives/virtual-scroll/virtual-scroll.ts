@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, ContentChild, ElementRef, EmbeddedViewRef, Input, IterableDiffer, IterableDiffers, NgZone, SimpleChanges, TrackByFunction } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ContentChild, ElementRef, EmbeddedViewRef, Input, IterableDiffer, IterableDiffers, NgZone, SimpleChanges, TrackByFunction, Output } from '@angular/core';
 import { Cell, CellType, HeaderFn, ItemHeightFn } from '@ionic/core';
 
-import { proxyInputs, proxyMethods } from '../proxies';
+import { proxyInputs, proxyMethods, proxyOutputs } from '../proxies';
 
 import { VirtualFooter } from './virtual-footer';
 import { VirtualHeader } from './virtual-header';
@@ -117,6 +117,10 @@ export class IonVirtualScroll {
    */
   @Input() trackBy: TrackByFunction<any>;
 
+  @Input() keepPosition: boolean;
+  @Input() itemBufferSize: number;
+  @Output() ionKeepPositionDone!: () => void;
+
   constructor(
     private zone: NgZone,
     private iterableDiffers: IterableDiffers,
@@ -132,12 +136,17 @@ export class IonVirtualScroll {
       'headerFn',
       'footerFn',
       'items',
-      'itemHeight'
+      'itemHeight',
+      'keepPosition',
+      'itemBufferSize'
     ]);
     proxyMethods(this, this.nativeEl, [
       'checkEnd',
       'checkRange',
       'positionForItem'
+    ]);
+    proxyOutputs(this, this.nativeEl, [
+      'ionKeepPositionDone'
     ]);
   }
 
