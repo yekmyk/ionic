@@ -102,11 +102,6 @@ export class Content implements ComponentInterface {
    */
   @Event() ionScrollEnd!: EventEmitter<ScrollBaseDetail>;
 
-  @Listen('body:ionNavDidChange')
-  onNavChanged() {
-    this.resize();
-  }
-
   componentWillLoad() {
     if (this.forceOverscroll === undefined) {
       this.forceOverscroll = this.mode === 'ios' && isPlatform(this.win, 'mobile');
@@ -118,8 +113,14 @@ export class Content implements ComponentInterface {
   }
 
   componentDidUnload() {
-    if (this.watchDog) {
-      clearInterval(this.watchDog);
+    this.onScrollEnd();
+  }
+
+  @Listen('click', { capture: true })
+  onClick(ev: Event) {
+    if (this.isScrolling) {
+      ev.preventDefault();
+      ev.stopPropagation();
     }
   }
 
@@ -274,13 +275,14 @@ export class Content implements ComponentInterface {
   }
 
   private onScrollEnd() {
-
     clearInterval(this.watchDog);
     this.watchDog = null;
-    this.isScrolling = false;
-    this.ionScrollEnd.emit({
-      isScrolling: false
-    });
+    if (this.isScrolling) {
+      this.isScrolling = false;
+      this.ionScrollEnd.emit({
+        isScrolling: false
+      });
+    }
   }
 
   hostData() {
