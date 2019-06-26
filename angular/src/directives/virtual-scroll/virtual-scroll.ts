@@ -100,6 +100,10 @@ export declare interface IonVirtualScroll {
    * Returns the position of the virtual item at the given index.
    */
   'positionForItem': (index: number) => Promise<number>;
+
+  keepPosition: boolean;
+  itemBufferSize: number;
+  ionKeepPositionDone: any;
 }
 
 @Component({
