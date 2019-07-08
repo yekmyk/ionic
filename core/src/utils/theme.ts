@@ -1,4 +1,4 @@
-import { Color, CssClassMap, Mode, RouterDirection } from '../interface';
+import { Color, CssClassMap, RouterDirection } from '../interface';
 
 export function hostContext(selector: string, el: HTMLElement): boolean {
   return el.closest(selector) !== null;
@@ -12,13 +12,6 @@ export function createColorClasses(color: Color | undefined | null): CssClassMap
     'ion-color': true,
     [`ion-color-${color}`]: true
   } : undefined;
-}
-
-export function createThemedClasses(mode: Mode | undefined, name: string): CssClassMap {
-  return {
-    [name]: true,
-    [`${name}-${mode}`]: mode !== undefined
-  };
 }
 
 export function getClassList(classes: string | (string | null | undefined)[] | undefined): string[] {
@@ -40,9 +33,9 @@ export function getClassMap(classes: string | string[] | undefined): CssClassMap
 
 const SCHEME = /^[a-z][a-z0-9+\-.]*:/;
 
-export async function openURL(win: Window, url: string | undefined | null, ev: Event | undefined | null, direction: RouterDirection): Promise<boolean> {
+export async function openURL(url: string | undefined | null, ev: Event | undefined | null, direction: RouterDirection): Promise<boolean> {
   if (url != null && url[0] !== '#' && !SCHEME.test(url)) {
-    const router = win.document.querySelector('ion-router');
+    const router = document.querySelector('ion-router');
     if (router) {
       if (ev != null) {
         ev.preventDefault();

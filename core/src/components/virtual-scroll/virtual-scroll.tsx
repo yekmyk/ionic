@@ -1,4 +1,4 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, EventListenerEnable, FunctionalComponent, Listen, Method, Prop, QueueApi, State, Watch } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, FunctionalComponent, Listen, Method, Prop, State, Watch, h, readTask, writeTask } from '@stencil/core';
 
 import { Cell, DomRenderFn, HeaderFn, ItemHeightFn, ItemRenderFn, VirtualNode } from '../../interface';
 
@@ -24,14 +24,11 @@ export class VirtualScroll implements ComponentInterface {
   private currentScrollTop = 0;
   private indexDirty = 0;
   private lastItemLen = 0;
+  private rmEvent: (() => void) | undefined;
 
-  @Element() el!: HTMLStencilElement;
+  @Element() el!: HTMLIonVirtualScrollElement;
 
   @State() totalHeight = 0;
-
-  @Prop({ context: 'queue' }) queue!: QueueApi;
-  @Prop({ context: 'enableListener' }) enableListener!: EventListenerEnable;
-  @Prop({ context: 'window' }) win!: Window;
 
   /**
    * It is important to provide this
@@ -169,12 +166,7 @@ export class VirtualScroll implements ComponentInterface {
     this.scrollEl = undefined;
   }
 
-  @Listen('scroll', { enabled: false, passive: false })
-  onScroll() {
-    this.updateVirtualScroll();
-  }
-
-  @Listen('window:resize')
+  @Listen('resize', { target: 'window' })
   onResize() {
     this.updateVirtualScroll();
   }
@@ -194,7 +186,7 @@ export class VirtualScroll implements ComponentInterface {
    * The subset of items to be updated can are specifing by an offset and a length.
    */
   @Method()
-  checkRange(offset: number, len = -1) {
+  async checkRange(offset: number, len = -1) {
     // TODO: kind of hacky how we do in-place updated of the cells
     // array. this part needs a complete refactor
     if (!this.items) {
@@ -215,7 +207,6 @@ export class VirtualScroll implements ComponentInterface {
       this.approxItemHeight,
       cellIndex, offset, length
     );
-    console.debug('[virtual] cells recalculated', cells.length);
     this.cells = inplaceUpdate(this.cells, cells, cellIndex);
     this.lastItemLen = this.items.length;
     this.indexDirty = Math.max(offset - 1, 0);
@@ -233,10 +224,14 @@ export class VirtualScroll implements ComponentInterface {
    * ```
    */
   @Method()
-  checkEnd() {
+  async checkEnd() {
     if (this.items) {
       this.checkRange(this.lastItemLen);
     }
+  }
+
+  private onScroll = () => {
+    this.updateVirtualScroll();
   }
 
   private updateVirtualScroll() {
@@ -252,8 +247,8 @@ export class VirtualScroll implements ComponentInterface {
     }
 
     // schedule DOM operations into the stencil queue
-    this.queue.read(this.readVS.bind(this));
-    this.queue.write(this.writeVS.bind(this));
+    readTask(this.readVS.bind(this));
+    writeTask(this.writeVS.bind(this));
   }
 
   private readVS() {
@@ -331,7 +326,7 @@ export class VirtualScroll implements ComponentInterface {
   private updateCellHeight(cell: Cell, node: any) {
     const update = () => {
       if ((node as any)['$ionCell'] === cell) {
-        const style = this.win.getComputedStyle(node);
+        const style = window.getComputedStyle(node);
         const height = node.offsetHeight + parseFloat(style.getPropertyValue('margin-bottom'));
         this.setCellHeight(cell, height);
       }
@@ -350,7 +345,6 @@ export class VirtualScroll implements ComponentInterface {
       return;
     }
     if (cell.height !== height || cell.visible !== true) {
-      console.debug(`[virtual] cell height or visibility changed ${cell.height}px -> ${height}px`);
       cell.visible = true;
       cell.height = height;
       this.indexDirty = Math.min(this.indexDirty, index);
@@ -391,7 +385,6 @@ export class VirtualScroll implements ComponentInterface {
       this.approxItemHeight,
       0, 0, this.lastItemLen
     );
-    console.debug('[virtual] cells recalculated', this.cells.length);
     this.indexDirty = 0;
   }
 
@@ -407,14 +400,22 @@ export class VirtualScroll implements ComponentInterface {
     this.heightIndex = resizeBuffer(this.heightIndex, this.cells.length);
     this.totalHeight = calcHeightIndex(this.heightIndex, this.cells, index);
 
-    console.debug('[virtual] height index recalculated', this.heightIndex.length - index);
     this.indexDirty = Infinity;
   }
 
   private enableScrollEvents(shouldListen: boolean) {
-    if (this.scrollEl) {
+    if (this.rmEvent) {
+      this.rmEvent();
+      this.rmEvent = undefined;
+    }
+
+    const scrollEl = this.scrollEl;
+    if (scrollEl) {
       this.isEnabled = shouldListen;
-      this.enableListener(this, 'scroll', shouldListen, this.scrollEl);
+      scrollEl.addEventListener('scroll', this.onScroll);
+      this.rmEvent = () => {
+        scrollEl.removeEventListener('scroll', this.onScroll);
+      };
     }
   }
 

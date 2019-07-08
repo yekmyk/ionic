@@ -1,4 +1,6 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, Prop, State, Watch } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, Prop, State, Watch, h } from '@stencil/core';
+
+import { getIonMode } from '../../global/ionic-global';
 
 @Component({
   tag: 'ion-img',
@@ -32,6 +34,9 @@ export class Img implements ComponentInterface {
   }
 
   /** Emitted when the img src has been set */
+  @Event() ionImgWillLoad!: EventEmitter<void>;
+
+  /** Emitted when the image has finished loading */
   @Event() ionImgDidLoad!: EventEmitter<void>;
 
   /** Emitted when the img fails to load */
@@ -67,6 +72,10 @@ export class Img implements ComponentInterface {
   private load() {
     this.loadError = this.onError;
     this.loadSrc = this.src;
+    this.ionImgWillLoad.emit();
+  }
+
+  private onLoad = () => {
     this.ionImgDidLoad.emit();
   }
 
@@ -81,12 +90,22 @@ export class Img implements ComponentInterface {
     }
   }
 
+  hostData() {
+    const mode = getIonMode(this);
+    return {
+      class: {
+        [mode]: true,
+      }
+    };
+  }
+
   render() {
     return (
       <img
         src={this.loadSrc}
         alt={this.alt}
         decoding="async"
+        onLoad={this.onLoad}
         onError={this.loadError}
       />
     );

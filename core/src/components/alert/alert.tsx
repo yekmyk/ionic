@@ -1,7 +1,9 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, Listen, Method, Prop, Watch } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, Listen, Method, Prop, Watch, h } from '@stencil/core';
 
-import { AlertButton, AlertInput, Animation, AnimationBuilder, Config, CssClassMap, Mode, OverlayEventDetail, OverlayInterface } from '../../interface';
+import { getIonMode } from '../../global/ionic-global';
+import { AlertButton, AlertInput, Animation, AnimationBuilder, CssClassMap, OverlayEventDetail, OverlayInterface } from '../../interface';
 import { BACKDROP, dismiss, eventMethod, isCancel, present } from '../../utils/overlays';
+import { sanitizeDOMString } from '../../utils/sanitization';
 import { getClassMap } from '../../utils/theme';
 
 import { iosEnterAnimation } from './animations/ios.enter';
@@ -9,6 +11,9 @@ import { iosLeaveAnimation } from './animations/ios.leave';
 import { mdEnterAnimation } from './animations/md.enter';
 import { mdLeaveAnimation } from './animations/md.leave';
 
+/**
+ * @virtualProp {"ios" | "md"} mode - The mode determines which platform styles to use.
+ */
 @Component({
   tag: 'ion-alert',
   styleUrls: {
@@ -26,18 +31,12 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   presented = false;
   animation?: Animation;
+  mode = getIonMode(this);
 
-  @Element() el!: HTMLStencilElement;
-
-  @Prop({ context: 'config' }) config!: Config;
+  @Element() el!: HTMLIonAlertElement;
 
   /** @internal */
   @Prop() overlayIndex!: number;
-
-  /**
-   * The mode determines which platform styles to use.
-   */
-  @Prop() mode!: Mode;
 
   /**
    * If `true`, the keyboard will be automatically dismissed when the overlay is presented.
@@ -72,6 +71,12 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   /**
    * The main message to be displayed in the alert.
+   * `message` can accept either plaintext or HTML as a string.
+   * To display characters normally reserved for HTML, they
+   * must be escaped. For example `<Ionic>` would become
+   * `&lt;Ionic&gt;`
+   *
+   * For more information: [Security Documentation](https://ionicframework.com/docs/faq/security)
    */
   @Prop() message?: string;
 
@@ -185,6 +190,12 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   /**
    * Dismiss the alert overlay after it has been presented.
+   *
+   * @param data Any data to emit in the dismiss events.
+   * @param role The role of the element that is dismissing the alert.
+   * This can be useful in a button handler for determining which button was
+   * clicked to dismiss the alert.
+   * Some examples include: ``"cancel"`, `"destructive"`, "selected"`, and `"backdrop"`.
    */
   @Method()
   dismiss(data?: any, role?: string): Promise<boolean> {
@@ -193,7 +204,6 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   /**
    * Returns a promise that resolves when the alert did dismiss.
-   *
    */
   @Method()
   onDidDismiss(): Promise<OverlayEventDetail> {
@@ -202,7 +212,6 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   /**
    * Returns a promise that resolves when the alert will dismiss.
-   *
    */
   @Method()
   onWillDismiss(): Promise<OverlayEventDetail> {
@@ -295,6 +304,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   private renderCheckbox(labelledby: string | undefined) {
     const inputs = this.processedInputs;
+    const mode = getIonMode(this);
     if (inputs.length === 0) {
       return null;
     }
@@ -319,7 +329,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
                 {i.label}
               </div>
             </div>
-            {this.mode === 'md' && <ion-ripple-effect></ion-ripple-effect>}
+            {mode === 'md' && <ion-ripple-effect></ion-ripple-effect>}
           </button>
         ))}
       </div>
@@ -384,6 +394,8 @@ export class Alert implements ComponentInterface, OverlayInterface {
   }
 
   hostData() {
+    const mode = getIonMode(this);
+
     return {
       'role': 'dialog',
       'aria-modal': 'true',
@@ -392,6 +404,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
       },
       class: {
         ...getClassMap(this.cssClass),
+        [mode]: true,
         'alert-translucent': this.translucent
       }
     };
@@ -399,6 +412,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
 
   private renderAlertButtons() {
     const buttons = this.processedButtons;
+    const mode = getIonMode(this);
     const alertButtonGroupClass = {
       'alert-button-group': true,
       'alert-button-group-vertical': buttons.length > 2
@@ -410,7 +424,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
             <span class="alert-button-inner">
               {button.text}
             </span>
-            {this.mode === 'md' && <ion-ripple-effect></ion-ripple-effect>}
+            {mode === 'md' && <ion-ripple-effect></ion-ripple-effect>}
           </button>
         )}
       </div>
@@ -439,7 +453,7 @@ export class Alert implements ComponentInterface, OverlayInterface {
           {this.subHeader && <h2 id={subHdrId} class="alert-sub-title">{this.subHeader}</h2>}
         </div>
 
-        <div id={msgId} class="alert-message" innerHTML={this.message}></div>
+        <div id={msgId} class="alert-message" innerHTML={sanitizeDOMString(this.message)}></div>
 
         {this.renderAlertInputs(labelledById)}
         {this.renderAlertButtons()}

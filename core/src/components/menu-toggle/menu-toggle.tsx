@@ -1,4 +1,6 @@
-import { Component, ComponentInterface, Listen, Prop, State } from '@stencil/core';
+import { Component, ComponentInterface, Host, Listen, Prop, State, h } from '@stencil/core';
+
+import { getIonMode } from '../../global/ionic-global';
 
 @Component({
   tag: 'ion-menu-toggle',
@@ -6,8 +8,6 @@ import { Component, ComponentInterface, Listen, Prop, State } from '@stencil/cor
   shadow: true
 })
 export class MenuToggle implements ComponentInterface {
-
-  @Prop({ context: 'document' }) doc!: Document;
 
   @State() visible = false;
 
@@ -33,21 +33,10 @@ export class MenuToggle implements ComponentInterface {
     return this.updateVisibility();
   }
 
-  @Listen('click')
-  async onClick() {
-    const menuCtrl = await getMenuController(this.doc);
-    if (menuCtrl) {
-      const menu = await menuCtrl.get(this.menu);
-      if (menu) {
-        menuCtrl.toggle(this.menu);
-      }
-    }
-  }
-
-  @Listen('body:ionMenuChange')
-  @Listen('body:ionSplitPaneVisible')
+  @Listen('ionMenuChange', { target: 'body' })
+  @Listen('ionSplitPaneVisible', { target: 'body' })
   async updateVisibility() {
-    const menuCtrl = await getMenuController(this.doc);
+    const menuCtrl = await getMenuController(document);
     if (menuCtrl) {
       const menu = await menuCtrl.get(this.menu);
       if (menu && await menu.isActive()) {
@@ -58,18 +47,31 @@ export class MenuToggle implements ComponentInterface {
     this.visible = false;
   }
 
-  hostData() {
-    const hidden = this.autoHide && !this.visible;
-    return {
-      'aria-hidden': hidden ? 'true' : null,
-      class: {
-        'menu-toggle-hidden': hidden,
+  private onClick = async () => {
+    const menuCtrl = await getMenuController(document);
+    if (menuCtrl) {
+      const menu = await menuCtrl.get(this.menu);
+      if (menu) {
+        menuCtrl.toggle(this.menu);
       }
-    };
+    }
   }
-
   render() {
-    return <slot></slot>;
+    const mode = getIonMode(this);
+    const hidden = this.autoHide && !this.visible;
+
+    return (
+      <Host
+        onClick={this.onClick}
+        aria-hidden={hidden ? 'true' : null}
+        class={{
+          [mode]: true,
+          'menu-toggle-hidden': hidden,
+        }}
+      >
+        <slot></slot>
+      </Host>
+    );
   }
 }
 
